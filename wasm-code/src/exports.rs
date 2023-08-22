@@ -1,12 +1,5 @@
 use sha2::{Digest, Sha256};
-use std::io::Cursor;
-
-use tfhe::boolean::client_key::ClientKey;
-use tfhe::boolean::parameters::PARAMETERS_ERROR_PROB_2_POW_MINUS_165;
-use tfhe::boolean::prelude::BinaryBooleanGates;
-use tfhe::boolean::server_key::ServerKey;
-
-use bincode2 as bincode;
+use tfhe::shortint::prelude::*;
 
 const BENCH_NAME: &str = "bench_cpu_sha256";
 
@@ -23,28 +16,24 @@ pub extern "C" fn bench_hash() -> u32 {
 #[no_mangle]
 pub extern "C" fn fhe_setup() -> u32 {
 
-    let cks = ClientKey::new(&PARAMETERS_ERROR_PROB_2_POW_MINUS_165);
-    // let sks = ServerKey::new(&cks);
-    let sks_raw = include_bytes!("../server_key.txt");
-    let server_key: ServerKey = bincode::deserialize(sks_raw).unwrap();
+    tfhe::core_crypto::seeders::custom_seeder::set_custom_seeder("test2".to_string());
 
-    let left = false;
-    let right = true;
+    let (client_key, server_key) = gen_keys(PARAM_MESSAGE_2_CARRY_2_KS_PBS);
 
-    let ct_left = cks.encrypt(left);
-    let ct_right = cks.encrypt(right);
+    let left = 100_000_000_00;
+    let right = 200_200_200_200;
 
-    let start = std::time::Instant::now();
+    let ct_left = client_key.encrypt(left);
+    let ct_right = client_key.encrypt(right);
 
-    let num_loops: usize = 1;
+
+    let num_loops: usize = 1000000;
 
     for _ in 0..num_loops {
-        let _ = server_key.and(&ct_left, &ct_right);
+        let _ = server_key.unchecked_add(&ct_left, &ct_right);
     }
-    let elapsed = start.elapsed().as_millis() as f64;
-    let mean: f64 = elapsed / num_loops as f64;
 
-    return elapsed as u32;
+    return num_loops as u32;
     // let cks_raw = include_bytes!("../client_key.txt");
     //
     // let config = ConfigBuilder::all_disabled()
@@ -84,3 +73,15 @@ pub extern "C" fn fhe_setup() -> u32 {
 // pub extern "C" fn fhe_add() -> u32 {
 //
 // }
+
+fn main() {
+
+    let seeder = tfhe::core_crypto::seeders::custom_seeder::set_custom_seeder("test".to_string());
+
+
+
+    let before = std::time::Instant::now();
+    let _ = fhe_setup();
+
+    println!("elapsed: {:?}", before.elapsed().as_millis());
+}
